@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pill Hub | Smart Cycle</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg: #05070a;
+            --focus-card: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+            --accent: #10b981;
+            --text: #ffffff;
+            --text-dim: #64748b;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, sans-serif;
+            margin: 0; padding: 15px;
+            display: flex; justify-content: center;
+        }
+
+        .container { width: 100%; max-width: 450px; }
+
+        /* ГЛАВНАЯ КАРТОЧКА СЕГОДНЯ */
+        .today-focus {
+            background: var(--focus-card);
+            border-radius: 30px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .today-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .day-label { 
+            font-size: 0.8rem; font-weight: 800; color: var(--accent); 
+            letter-spacing: 2px; text-transform: uppercase; 
+        }
+
+        .progress-val { font-size: 2.2rem; font-weight: 900; color: var(--accent); }
+
+        /* ПРЕПАРАТЫ СЕГОДНЯ */
+        .pill-card {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 18px; border-radius: 20px;
+            margin-bottom: 12px; display: flex; justify-content: space-between;
+            align-items: center; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+        }
+
+        .pill-card.done {
+            background: rgba(16, 185, 129, 0.05);
+            opacity: 0.5; transform: scale(0.96);
+            border-color: var(--accent);
+        }
+
+        .pill-card.done .name { text-decoration: line-through; color: var(--text-dim); }
+
+        /* НЕДЕЛЬНЫЙ ПЛАН */
+        .section-title {
+            color: var(--text-dim); font-size: 0.8rem; font-weight: bold;
+            text-transform: uppercase; letter-spacing: 2px;
+            margin: 35px 0 15px 5px;
+        }
+
+        .week-day-row {
+            background: #111827; border-radius: 15px;
+            padding: 15px; margin-bottom: 10px;
+            border: 1px solid #1e293b;
+        }
+
+        .week-day-name { color: var(--accent); font-size: 0.9rem; font-weight: bold; margin-bottom: 10px; }
+
+        .pill-mini {
+            display: flex; justify-content: space-between;
+            font-size: 0.9rem; padding: 5px 0; border-top: 1px solid #1e293b;
+        }
+
+        /* ФОРМА */
+        .add-box {
+            background: #111827; padding: 20px; border-radius: 20px;
+            margin-top: 20px; border: 1px solid #1e293b;
+        }
+        input, select, button {
+            width: 100%; padding: 12px; margin-top: 10px;
+            border-radius: 12px; border: 1px solid #334155;
+            background: #05070a; color: white; box-sizing: border-box;
+        }
+        button { background: var(--accent); color: #000; font-weight: bold; border: none; cursor: pointer; }
+
+        .time { font-family: monospace; font-weight: bold; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="today-focus">
+        <div class="today-header">
+            <div>
+                <div class="day-label" id="date-str">СЕГОДНЯ</div>
+                <h2 id="today-name" style="margin:5px 0 0 0; font-size: 1.8rem;">---</h2>
+            </div>
+            <div class="progress-val" id="percent">0%</div>
+        </div>
+        <div id="today-list"></div>
+    </div>
+
+    <div class="add-box">
+        <input type="text" id="p-name" placeholder="Название лекарства">
+        <div style="display:flex; gap:10px;">
+            <input type="time" id="p-time">
+            <select id="p-day">
+                <option value="1">Понедельник</option>
+                <option value="2">Вторник</option>
+                <option value="3">Среда</option>
+                <option value="4">Четверг</option>
+                <option value="5">Пятница</option>
+                <option value="6">Суббота</option>
+                <option value="0">Воскресенье</option>
+            </select>
+        </div>
+        <button id="add-btn">Добавить в систему</button>
+    </div>
+
+    <div class="section-title">План на следующие дни</div>
+    <div id="future-list"></div>
+</div>
+
+<script>
+    let pills = JSON.parse(localStorage.getItem('pillHubV5')) || [];
+    const days = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+
+    // Функция проверки сброса (если настал новый день)
+    function checkNewDay() {
+        const lastDate = localStorage.getItem('lastOpenDate');
+        const todayStr = new Date().toDateString();
+        
+        if (lastDate !== todayStr) {
+            // Если день сменился, сбрасываем галочки только для "вчерашнего" дня
+            // Но в нашей логике лучше сбрасывать все, так как это недельный цикл
+            pills.forEach(p => p.done = false); 
+            localStorage.setItem('lastOpenDate', todayStr);
+            save();
+        }
+    }
+
+    document.getElementById('add-btn').onclick = () => {
+        const name = document.getElementById('p-name').value;
+        const time = document.getElementById('p-time').value;
+        const day = document.getElementById('p-day').value;
+        if(!name || !time) return;
+        pills.push({ id: Date.now(), name, time, day: parseInt(day), done: false });
+        save();
+        document.getElementById('p-name').value = '';
+    };
+
+    function save() {
+        localStorage.setItem('pillHubV5', JSON.stringify(pills));
+        render();
+    }
+
+    function render() {
+        const now = new Date();
+        const todayIdx = now.getDay();
+        
+        document.getElementById('today-name').innerText = days[todayIdx];
+        document.getElementById('date-str').innerText = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+        // Рендер СЕГОДНЯ
+        const todayList = document.getElementById('today-list');
+        todayList.innerHTML = '';
+        const todayItems = pills.filter(p => p.day === todayIdx).sort((a,b) => a.time.localeCompare(b.time));
+
+        todayItems.forEach(p => {
+            const el = document.createElement('div');
+            el.className = `pill-card ${p.done ? 'done' : ''}`;
+            el.innerHTML = `<div><div class="name">${p.name}</div><div class="time">${p.time}</div></div><div>${p.done ? '✅' : '💊'}</div>`;
+            el.onclick = () => toggle(p.id);
+            todayList.appendChild(el);
+        });
+
+        const percent = todayItems.length ? Math.round((todayItems.filter(p=>p.done).length / todayItems.length) * 100) : 0;
+        document.getElementById('percent').innerText = percent + '%';
+
+        // Рендер БУДУЩИХ ДНЕЙ (Сортировка: завтра, послезавтра...)
+        const futureList = document.getElementById('future-list');
+        futureList.innerHTML = '';
+        
+        for(let i=1; i<7; i++) {
+            const nextDayIdx = (todayIdx + i) % 7;
+            const nextDayPills = pills.filter(p => p.day === nextDayIdx);
+            if(nextDayPills.length === 0) continue;
+
+            const row = document.createElement('div');
+            row.className = 'week-day-row';
+            row.innerHTML = `<div class="week-day-name">${days[nextDayIdx]}</div>`;
+            
+            nextDayPills.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'pill-mini';
+                item.innerHTML = `<span>${p.name}</span><span style="display:flex; gap:10px;"><span class="time">${p.time}</span><span onclick="del(${p.id})">✕</span></span>`;
+                row.appendChild(item);
+            });
+            futureList.appendChild(row);
+        }
+    }
+
+    function toggle(id) {
+        const p = pills.find(x => x.id === id);
+        p.done = !p.done;
+        if(p.done) confetti({ particleCount: 60, spread: 40, origin: { y: 0.8 }, colors: ['#10b981', '#ffffff'] });
+        save();
+    }
+
+    function del(id) {
+        pills = pills.filter(p => p.id !== id);
+        save();
+    }
+
+    // Уведомление за 5 минут
+    setInterval(() => {
+        const n = new Date();
+        const f = new Date(n.getTime() + 5 * 60000);
+        const t = `${String(f.getHours()).padStart(2,'0')}:${String(f.getMinutes()).padStart(2,'0')}`;
+        pills.forEach(p => {
+            if(p.day === n.getDay() && p.time === t && !p.done) {
+                new Notification("Pill Hub", { body: `Через 5 минут: ${p.name}` });
+            }
+        });
+    }, 60000);
+
+    checkNewDay();
+    render();
+    if(Notification.permission !== 'granted') Notification.requestPermission();
+</script>
+</body>
+</html>
