@@ -1,0 +1,16 @@
+
+{
+  "name": "Pill Hub Pro",
+  "short_name": "PillHub",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#080a12",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/822/822143.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
